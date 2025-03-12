@@ -1,0 +1,23 @@
+{
+    "name": "perf-metrics",
+    "version": "1.0.1",
+    "description": "A lightweight plugin for measuring web performance timing",
+    "author": "iOreon",
+    "main": "dist/index.js",
+    "module": "dist/index.esm.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "build": "tsc",
+        "prepublishOnly": "npm run build"
+    },
+    "keywords": [
+        "performance",
+        "web",
+        "metrics",
+        "timing"
+    ],
+    "license": "MIT",
+    "devDependencies": {
+        "typescript": "^5.0.0"
+    }
+}
