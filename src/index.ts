@@ -1,37 +1,49 @@
-// src/index.ts
-export interface PerformanceMetrics {
-    FP: number
-    TTI: number
-    DomReady: number
-    Load: number
-    FirstByte: number
-    DNS: number
-    TCP: number
-    SSL: number
-    TTFB: number
-    Trans: number
-    DomParse: number
-    Res: number
+interface PerformanceMetrics {
+    [key: string]: number
 }
 
-const metricNames: Record<keyof PerformanceMetrics, string> = {
-    FP: "🎨 首次绘制 (First Paint)",
-    TTI: "⚡ 可交互时间 (Time to Interactive)",
-    DomReady: "📄 DOM 就绪时间 (DOM Ready)",
-    Load: "⏳ 页面加载时间 (Page Load)",
-    FirstByte: "📡 首字节时间 (First Byte Time)",
-    DNS: "🌐 DNS 查询时间 (DNS Lookup)",
-    TCP: "🔗 TCP 连接时间 (TCP Connection)",
-    SSL: "🔒 SSL 握手时间 (SSL Handshake)",
-    TTFB: "⏱️ 服务器响应时间 (Time To First Byte)",
-    Trans: "📤 内容传输时间 (Content Transfer Time)",
-    DomParse: "🛠️ DOM 解析时间 (DOM Parsing)",
-    Res: "📦 资源加载时间 (Resource Loading)"
+const metricData: Record<string, { name: string; describe: string }> = {
+    FP: { name: "(First Paint)", describe: "🎨 首次绘制" },
+    FCP: { name: "(First Contentful Paint)", describe: "🎨 首次内容绘制" },
+    LCP: { name: "(Largest Contentful Paint)", describe: "🏆 最大内容绘制" },
+    TTI: { name: "(Time to Interactive)", describe: "⚡ 可交互时间" },
+    DomReady: { name: "(DOM Ready)", describe: "📄 DOM 就绪时间" },
+    Load: { name: "(Page Load)", describe: "⏳ 页面加载时间" },
+    FirstByte: { name: "(First Byte Time)", describe: "📡 首字节时间" },
+    DNS: { name: "(DNS Lookup)", describe: "🌐 DNS 查询时间" },
+    TCP: { name: "(TCP Connection)", describe: "🔗 TCP 连接时间" },
+    SSL: { name: "(SSL Handshake)", describe: "🔒 SSL 握手时间" },
+    TTFB: { name: "(Time To First Byte)", describe: "⏱️ 服务器响应时间" },
+    Trans: { name: "(Content Transfer Time)", describe: "📤 内容传输时间" },
+    DomParse: { name: "(DOM Parsing)", describe: "🛠️ DOM 解析时间" },
+    Res: { name: "(Resource Loading)", describe: "📦 资源加载时间" },
+    CLS: { name: "(Cumulative Layout Shift)", describe: "⚠️ 累积布局偏移" },
+    TBT: { name: "(Total Blocking Time)", describe: "⏳ 总阻塞时间" },
+    FID: { name: "(First Input Delay)", describe: "🖱️ 首次输入延迟" }
 }
 
-const resolveNavigationTiming = (
-    entry: PerformanceNavigationTiming | PerformanceTiming
-): PerformanceMetrics => {
+const resolvePerformanceMetrics = (): PerformanceMetrics => {
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming
+
+    const fcp = performance
+        .getEntriesByType("paint")
+        .find((entry) => entry.name === "first-contentful-paint")
+    const lcp = performance
+        .getEntriesByType("paint")
+        .find((entry) => entry.name === "largest-contentful-paint")
+
+    const cls = performance
+        .getEntriesByType("layout-shift")
+        .reduce((total, entry) => total + (entry as PerformanceEntry & { value: number }).value, 0)
+
+    const tbt = performance
+        .getEntriesByType("longtask")
+        .reduce((total, entry) => total + entry.duration, 0)
+
+    const fid =
+        performance.getEntriesByType("event").find((entry) => entry.name === "first-input")
+            ?.startTime || 0
+
     const {
         domainLookupStart,
         domainLookupEnd,
@@ -45,10 +57,12 @@ const resolveNavigationTiming = (
         domContentLoadedEventEnd,
         loadEventStart,
         fetchStart
-    } = entry as PerformanceNavigationTiming
+    } = navigation
 
     return {
         FP: responseEnd - fetchStart,
+        FCP: fcp ? fcp.startTime : 0,
+        LCP: lcp ? lcp.startTime : 0,
         TTI: domInteractive - fetchStart,
         DomReady: domContentLoadedEventEnd - fetchStart,
         Load: loadEventStart - fetchStart,
@@ -59,23 +73,18 @@ const resolveNavigationTiming = (
         TTFB: responseStart - requestStart,
         Trans: responseEnd - responseStart,
         DomParse: domInteractive - responseEnd,
-        Res: loadEventStart - domContentLoadedEventEnd
+        Res: loadEventStart - domContentLoadedEventEnd,
+        CLS: cls,
+        TBT: tbt,
+        FID: fid
     }
 }
 
-export const getNavigationTiming = (): PerformanceMetrics => {
-    const navigation = performance.getEntriesByType("navigation")[0] as
-        | PerformanceNavigationTiming
-        | undefined
-    return resolveNavigationTiming(navigation || performance.timing)
-}
-
-export const logPerformance = (): void => {
-    const metrics = getNavigationTiming()
-    const tableData = Object.keys(metrics).map((key) => ({
-        "🚀 性能指标": `${key}`,
-        "📖 描述": `${metricNames[key as keyof PerformanceMetrics]}`,
-        "⏱️ 时间": `${metrics[key as keyof PerformanceMetrics].toFixed(2)}ms`
+const logMetrics = (metrics: PerformanceMetrics): void => {
+    const tableData = Object.entries(metrics).map(([key, value]) => ({
+        "🚀 性能指标": `${key}  ${metricData[key].name}`,
+        "📖 描述": `${metricData[key].describe}`,
+        "⏱️ 时间": `${value.toFixed(2)}ms`
     }))
 
     console.log(
@@ -84,10 +93,26 @@ export const logPerformance = (): void => {
         "background:#41b883; padding: 4px; border-radius: 4px; color: #fff; font-weight: bold;",
         "color:#41b883; font-weight: bold;"
     )
+
     console.table(tableData)
 }
 
-// 自动记录性能（可选）
-if (typeof window !== "undefined") {
-    window.addEventListener("load", logPerformance)
+export const logPerformance = (): void => {
+    const metrics = resolvePerformanceMetrics()
+    logMetrics(metrics)
 }
+
+export const getNavigationTiming = (): PerformanceMetrics => {
+    return resolvePerformanceMetrics()
+}
+
+const autoLogPerformance = (): void => {
+    if (typeof window !== "undefined") {
+        window.addEventListener("load", () => {
+            const metrics = resolvePerformanceMetrics()
+            logMetrics(metrics)
+        })
+    }
+}
+
+autoLogPerformance()
